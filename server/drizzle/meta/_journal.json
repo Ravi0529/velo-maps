@@ -8,6 +8,13 @@
       "when": 1777582850192,
       "tag": "0000_last_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777589947334,
+      "tag": "0001_certain_gateway",
+      "breakpoints": true
     }
   ]
 }
