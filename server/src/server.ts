@@ -6,7 +6,7 @@ import { env } from "./env";
 async function main() {
   try {
     const server = createServer(createApplication());
-    const PORT: number = env.PORT ? +env.PORT : 5000;
+    const PORT: number = env.PORT ? +env.PORT : 8000;
 
     server.listen(PORT, () => {
       console.log(`The server is running on PORT: ${PORT}`);
