@@ -1,5 +1,9 @@
 import express from "express";
 import type { Express, Request, Response } from "express";
+import cors from "cors";
+
+import { authRouter } from "./auth/auth.routes";
+import { authenticationMiddleware } from "./middleware/auth.middleware";
 
 export function createApplication(): Express {
   const app = express();
@@ -10,6 +14,11 @@ export function createApplication(): Express {
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  app.use(cors());
+
+  app.use(authenticationMiddleware());
+  app.use("/api/auth", authRouter);
 
   return app;
 }
