@@ -1,7 +1,7 @@
 import { OAuth2Client } from "google-auth-library";
 import { db } from "../../db";
 import { users } from "../../db/schema";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { createUserToken } from "../utils/token";
 import { env } from "../../env";
 
@@ -58,5 +58,24 @@ export async function loginWithGoogle(idToken: string) {
   return {
     user,
     token,
+  };
+}
+
+export async function listCommunityAvatars() {
+  const community = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      avatar: users.avatar,
+      lastSeen: users.lastSeen,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .orderBy(desc(users.lastSeen), desc(users.createdAt))
+    .limit(18);
+
+  return {
+    users: community,
+    total: community.length,
   };
 }
