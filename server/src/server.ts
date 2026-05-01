@@ -13,8 +13,12 @@ import { startSocketConsumer } from "./app/kafka/kafka.socket-consumer";
 import { startDBConsumer } from "./app/kafka/kafka.db-consumer";
 import {
   addActiveUser,
+  canSendLocation,
   getActiveUsers,
+  lastHeartbeat,
   removeActiveUser,
+  shouldProcessLocation,
+  updateHeartbeat,
 } from "./app/presence/presence.service";
 
 async function main() {
@@ -49,6 +53,12 @@ async function main() {
       socket.on("client:location:update", async (data) => {
         const userId = socket.data.user.id;
 
+        if (!shouldProcessLocation(userId, data.latitude, data.longitude)) {
+          return;
+        }
+        if (!canSendLocation(userId)) return;
+        updateHeartbeat(userId);
+
         await producer.send({
           topic: "location-updates",
           messages: [
@@ -80,6 +90,21 @@ async function main() {
 
     await startSocketConsumer(io);
     await startDBConsumer();
+
+    setInterval(() => {
+      const now = Date.now();
+
+      for (const [userId, last] of lastHeartbeat.entries()) {
+        if (now - last > 30000) {
+          removeActiveUser(userId);
+          lastHeartbeat.delete(userId);
+
+          console.log(`Cleaned stale user: ${userId}`);
+
+          io.emit("server:users:active", getActiveUsers());
+        }
+      }
+    }, 3000);
 
     server.listen(PORT, () => {
       console.log(`The server is running on PORT: ${PORT}`);
