@@ -31,21 +31,48 @@ export default function MapView() {
 
     return L.divIcon({
       html: `
-        <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%, -100%)">
-          <img 
-            src="${avatarUrl}" 
-            style="width:40px;height:40px;border-radius:50%;border:2px solid white;object-fit:cover"
-          />
-          <span style="font-size:12px;color:black;background:white;padding:2px 6px;border-radius:6px;margin-top:2px;white-space:nowrap">
-            ${user.name}
-          </span>
-        </div>
-      `,
+    <div style="position:relative;display:flex;flex-direction:column;align-items:center">
+      <img 
+        src="${avatarUrl}" 
+        style="
+          width:40px;
+          height:40px;
+          border-radius:50%;
+          border:2px solid white;
+          object-fit:cover;
+          transform: translate(-50%, -100%);
+          position:absolute;
+          left:50%;
+          top:0;
+        "
+      />
+      <span style="
+        position:absolute;
+        top:42px;
+        left:50%;
+        transform:translateX(-50%);
+        font-size:12px;
+        color:black;
+        background:white;
+        padding:2px 6px;
+        border-radius:6px;
+        white-space:nowrap;
+      ">
+        ${user.name}
+      </span>
+    </div>
+  `,
       className: "",
-      iconSize: [50, 60],
-      iconAnchor: [25, 60],
+      iconSize: [0, 0],
+      iconAnchor: [0, 0],
     });
   };
+
+  // const getHeading = (from: [number, number], to: [number, number]) => {
+  //   const dy = to[0] - from[0];
+  //   const dx = to[1] - from[1];
+  //   return (Math.atan2(dx, dy) * 180) / Math.PI;
+  // };
 
   const animateMarker = (
     marker: L.Marker,
@@ -54,16 +81,31 @@ export default function MapView() {
   ) => {
     const duration = 1000;
     const start = performance.now();
+    // const heading = getHeading(from, to);
 
     function animate(time: number) {
-      const t = Math.min((time - start) / duration, 1);
+      const progress = Math.min((time - start) / duration, 1);
+
+      const t =
+        progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
       const lat = from[0] + (to[0] - from[0]) * t;
       const lng = from[1] + (to[1] - from[1]) * t;
 
       marker.setLatLng([lat, lng]);
 
-      if (t < 1) requestAnimationFrame(animate);
+      // rotate avatar
+      // const el = marker.getElement();
+      // if (el) {
+      //   const img = el.querySelector("img");
+      //   if (img) {
+      //     img.style.transform = `translate(-50%, -100%) rotate(${heading}deg)`;
+      //   }
+      // }
+
+      if (progress < 1) requestAnimationFrame(animate);
     }
 
     requestAnimationFrame(animate);
@@ -92,8 +134,6 @@ export default function MapView() {
         } else {
           marker.setLatLng(latlng);
         }
-
-        marker.setIcon(createAvatarIcon({ name, avatar }));
       }
 
       lastPositions.set(userId, latlng);
