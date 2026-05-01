@@ -14,7 +14,12 @@ export async function startSocketConsumer(io: {
     eachMessage: async ({ message }) => {
       const data = JSON.parse(message.value!.toString());
 
-      io.emit("server:location:update", data);
+      io.emit("server:location:update", {
+        userId: data.userId,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        timestamp: data.timestamp,
+      });
     },
   });
 }
