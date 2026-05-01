@@ -2,11 +2,20 @@ import "dotenv/config";
 import { createServer } from "node:http";
 import { createApplication } from "./app/app";
 import { Server } from "socket.io";
+import { users } from "./db/schema";
+import { eq } from "drizzle-orm";
 
+import { db } from "./db";
 import { env } from "./env";
 import { verifyUserToken } from "./app/utils/token";
 import { kafkaClient } from "./app/kafka/kafka.client";
 import { startSocketConsumer } from "./app/kafka/kafka.socket-consumer";
+import { startDBConsumer } from "./app/kafka/kafka.db-consumer";
+import {
+  addActiveUser,
+  getActiveUsers,
+  removeActiveUser,
+} from "./app/presence/presence.service";
 
 async function main() {
   try {
@@ -33,7 +42,9 @@ async function main() {
     });
 
     io.on("connection", (socket) => {
-      console.log("User connected: ", socket.data.user.id);
+      const userId = socket.data.user.id;
+      console.log(`User Connected: [UserId => ${userId}]`);
+      addActiveUser(userId, socket.id);
 
       socket.on("client:location:update", async (data) => {
         const userId = socket.data.user.id;
@@ -54,12 +65,21 @@ async function main() {
         });
       });
 
-      socket.on("disconnect", () => {
-        console.log("User disconnected: ", socket.data.user.id);
+      socket.on("disconnect", async () => {
+        console.log(`User Disconnected: [UserId => ${userId}]`);
+
+        removeActiveUser(userId);
+        io.emit("server:users:active", getActiveUsers());
+
+        await db
+          .update(users)
+          .set({ lastSeen: new Date() })
+          .where(eq(users.id, userId));
       });
     });
 
     await startSocketConsumer(io);
+    await startDBConsumer();
 
     server.listen(PORT, () => {
       console.log(`The server is running on PORT: ${PORT}`);
