@@ -48,7 +48,7 @@ export default function MapView() {
       />
       <span style="
         position:absolute;
-        top:42px;
+        top:2px;
         left:50%;
         transform:translateX(-50%);
         font-size:12px;
@@ -58,7 +58,7 @@ export default function MapView() {
         border-radius:6px;
         white-space:nowrap;
       ">
-        ${user.name}
+        ${user.name.split(" ")[0]}
       </span>
     </div>
   `,
