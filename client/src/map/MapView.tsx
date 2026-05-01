@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { LogOut } from "lucide-react";
 import { socket } from "../lib/socket";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,7 +10,16 @@ const lastPositions = new Map<string, [number, number]>();
 
 export default function MapView() {
   const mapRef = useRef<L.Map | null>(null);
-  const myUserId = localStorage.getItem("userId");
+  const storedUser = localStorage.getItem("user");
+  const myUserId = storedUser ? JSON.parse(storedUser).id : null;
+
+  function handleLogout() {
+    socket.disconnect();
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("userId");
+    window.location.reload();
+  }
 
   useEffect(() => {
     const map = L.map("map").setView([20.5937, 78.9629], 5);
@@ -189,5 +199,27 @@ export default function MapView() {
     return () => clearInterval(interval);
   }, []);
 
-  return <div id="map" className="h-screen w-full" />;
+  return (
+    <div className="h-screen w-full bg-slate-100 p-3 sm:p-4">
+      <div className="relative h-full overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_25px_60px_rgba(15,23,42,0.08)]">
+        <div className="pointer-events-none absolute left-4 top-4 z-500 rounded-2xl border border-white/90 bg-white/90 px-4 py-3 shadow-lg backdrop-blur">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+            Live map
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            Active locations update in real time.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="absolute right-4 top-4 z-500 inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-lg transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </button>
+        <div id="map" className="h-full w-full" />
+      </div>
+    </div>
+  );
 }
