@@ -2,7 +2,7 @@ import "dotenv/config";
 import { createServer } from "node:http";
 import { createApplication } from "./app/app";
 import { Server } from "socket.io";
-import { users } from "./db/schema";
+import { users, currentLocations } from "./db/schema";
 import { eq } from "drizzle-orm";
 
 import { db } from "./db";
@@ -16,7 +16,6 @@ import {
   canSendLocation,
   getActiveUsers,
   lastHeartbeat,
-  removeActiveUser,
   shouldProcessLocation,
   updateHeartbeat,
 } from "./app/presence/presence.service";
@@ -27,7 +26,7 @@ async function main() {
 
     const io = new Server(server, {
       cors: {
-        origin: ["http://localhost:5173"],
+        origin: "*",
         methods: ["GET", "POST"],
         credentials: true,
       },
@@ -50,19 +49,36 @@ async function main() {
       next();
     });
 
-    io.on("connection", (socket) => {
+    io.on("connection", async (socket) => {
       const userId = socket.data.user.id;
       console.log(`User Connected: [UserId => ${userId}]`);
       addActiveUser(userId, socket.id);
 
+      const allUsersWithLocation = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          avatar: users.avatar,
+          latitude: currentLocations.latitude,
+          longitude: currentLocations.longitude,
+          updatedAt: currentLocations.updatedAt,
+        })
+        .from(users)
+        .leftJoin(currentLocations, eq(users.id, currentLocations.userId));
+
+      socket.emit("server:users:init", allUsersWithLocation);
+
       socket.on("client:location:update", async (data) => {
         const userId = socket.data.user.id;
 
-        if (!shouldProcessLocation(userId, data.latitude, data.longitude)) {
+        updateHeartbeat(userId);
+
+        if (
+          !shouldProcessLocation(userId, data.latitude, data.longitude) &&
+          !canSendLocation(userId)
+        ) {
           return;
         }
-        if (!canSendLocation(userId)) return;
-        updateHeartbeat(userId);
 
         await producer.send({
           topic: "location-updates",
@@ -83,7 +99,7 @@ async function main() {
       socket.on("disconnect", async () => {
         console.log(`User Disconnected: [UserId => ${userId}]`);
 
-        removeActiveUser(userId);
+        // removeActiveUser(userId);
         io.emit("server:users:active", getActiveUsers());
 
         await db
@@ -100,13 +116,12 @@ async function main() {
       const now = Date.now();
 
       for (const [userId, last] of lastHeartbeat.entries()) {
-        if (now - last > 30000) {
-          removeActiveUser(userId);
+        if (now - last > 120000) {
           lastHeartbeat.delete(userId);
 
-          console.log(`Cleaned stale user: ${userId}`);
+          console.log(`Marked inactive user: ${userId}`);
 
-          io.emit("server:users:active", getActiveUsers());
+          io.emit("server:user:inactive", { userId });
         }
       }
     }, 3000);

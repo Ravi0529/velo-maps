@@ -7,11 +7,14 @@ import "leaflet/dist/leaflet.css";
 const markers = new Map<string, L.Marker>();
 const paths = new Map<string, L.Polyline>();
 const lastPositions = new Map<string, [number, number]>();
+const userStatus = new Map<string, "online" | "offline">();
+const userMeta = new Map<string, { name: string; avatar: string | null }>();
 
 export default function MapView() {
   const mapRef = useRef<L.Map | null>(null);
   const storedUser = localStorage.getItem("user");
   const myUserId = storedUser ? JSON.parse(storedUser).id : null;
+  const hasCentered = useRef(false);
 
   function handleLogout() {
     socket.disconnect();
@@ -34,55 +37,102 @@ export default function MapView() {
     };
   }, []);
 
-  const createAvatarIcon = (user: any) => {
+  useEffect(() => {
+    socket.on("server:users:init", (users) => {
+      users.forEach((user: any) => {
+        if (!user.latitude || !user.longitude) return;
+
+        const latlng: [number, number] = [user.latitude, user.longitude];
+
+        userStatus.set(user.id, "offline");
+        userMeta.set(user.id, {
+          name: user.name,
+          avatar: user.avatar ?? null,
+        });
+
+        if (!markers.has(user.id)) {
+          const marker = L.marker(latlng, {
+            icon: createAvatarIcon(user, "offline"),
+          }).addTo(mapRef.current!);
+
+          marker.bindPopup(`
+          <div style="text-align:center">
+            <b>${user.name}</b><br/>
+            Last seen: ${
+              user.updatedAt
+                ? new Date(user.updatedAt).toLocaleTimeString()
+                : "N/A"
+            }
+          </div>
+        `);
+
+          markers.set(user.id, marker);
+          lastPositions.set(user.id, latlng);
+        }
+      });
+    });
+
+    return () => {
+      socket.off("server:users:init");
+    };
+  }, []);
+
+  const createAvatarIcon = (user: any, status: "online" | "offline") => {
     const avatarUrl =
       user.avatar ||
       "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.name);
+    const dotColor = status === "online" ? "#22c55e" : "#ef4444";
 
     return L.divIcon({
       html: `
-    <div style="position:relative;display:flex;flex-direction:column;align-items:center">
-      <img 
-        src="${avatarUrl}" 
-        style="
-          width:40px;
-          height:40px;
-          border-radius:50%;
-          border:2px solid white;
-          object-fit:cover;
-          transform: translate(-50%, -100%);
-          position:absolute;
-          left:50%;
-          top:0;
-        "
-      />
-      <span style="
-        position:absolute;
-        top:2px;
-        left:50%;
-        transform:translateX(-50%);
-        font-size:12px;
-        color:black;
-        background:white;
-        padding:2px 6px;
-        border-radius:6px;
-        white-space:nowrap;
-      ">
-        ${user.name.split(" ")[0]}
-      </span>
-    </div>
-  `,
+        <div style="position:relative;width:64px;height:64px;">
+          <img 
+            src="${avatarUrl}" 
+            style="
+              width:40px;
+              height:40px;
+              border-radius:50%;
+              border:2px solid white;
+              object-fit:cover;
+              transform: translate(-50%, -100%);
+              position:absolute;
+              left:50%;
+              top:10px;
+            "
+          />
+          <span style="
+            position:absolute;
+            left:calc(50% + 10px);
+            top:-2px;
+            width:12px;
+            height:12px;
+            border-radius:999px;
+            background:${dotColor};
+            border:2px solid white;
+            box-shadow:0 0 0 1px rgba(15,23,42,0.15);
+            z-index:2;
+          "></span>
+          <span style="
+            position:absolute;
+            top:16px;
+            left:50%;
+            transform:translateX(-50%);
+            font-size:12px;
+            color:black;
+            background:white;
+            padding:2px 6px;
+            border-radius:6px;
+            white-space:nowrap;
+          ">
+            ${user.name.split(" ")[0]}
+          </span>
+        </div>
+      `,
       className: "",
       iconSize: [0, 0],
       iconAnchor: [0, 0],
     });
   };
-
-  // const getHeading = (from: [number, number], to: [number, number]) => {
-  //   const dy = to[0] - from[0];
-  //   const dx = to[1] - from[1];
-  //   return (Math.atan2(dx, dy) * 180) / Math.PI;
-  // };
 
   const animateMarker = (
     marker: L.Marker,
@@ -91,7 +141,6 @@ export default function MapView() {
   ) => {
     const duration = 1000;
     const start = performance.now();
-    // const heading = getHeading(from, to);
 
     function animate(time: number) {
       const progress = Math.min((time - start) / duration, 1);
@@ -106,15 +155,6 @@ export default function MapView() {
 
       marker.setLatLng([lat, lng]);
 
-      // rotate avatar
-      // const el = marker.getElement();
-      // if (el) {
-      //   const img = el.querySelector("img");
-      //   if (img) {
-      //     img.style.transform = `translate(-50%, -100%) rotate(${heading}deg)`;
-      //   }
-      // }
-
       if (progress < 1) requestAnimationFrame(animate);
     }
 
@@ -128,13 +168,15 @@ export default function MapView() {
       const latlng: [number, number] = [latitude, longitude];
       const prev = lastPositions.get(userId);
 
+      userStatus.set(userId, "online");
+      userMeta.set(userId, { name, avatar: avatar ?? null });
+
       if (!markers.has(userId)) {
         const marker = L.marker(latlng, {
-          icon: createAvatarIcon({ name, avatar }),
+          icon: createAvatarIcon({ name, avatar }, "online"),
         }).addTo(mapRef.current!);
 
         marker.bindPopup("");
-
         markers.set(userId, marker);
       } else {
         const marker = markers.get(userId)!;
@@ -144,6 +186,9 @@ export default function MapView() {
         } else {
           marker.setLatLng(latlng);
         }
+
+        const status = userStatus.get(userId) || "online";
+        marker.setIcon(createAvatarIcon({ name, avatar }, status));
       }
 
       lastPositions.set(userId, latlng);
@@ -176,13 +221,30 @@ export default function MapView() {
         </div>
       `);
 
-      if (userId === myUserId) {
+      if (userId === myUserId && !hasCentered.current) {
         mapRef.current?.setView(latlng, 15);
+        hasCentered.current = true;
       }
     });
 
     return () => {
       socket.off("server:location:update");
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on("server:user:inactive", ({ userId }) => {
+      userStatus.set(userId, "offline");
+
+      const marker = markers.get(userId);
+      if (marker) {
+        const meta = userMeta.get(userId) ?? { name: "User", avatar: null };
+        marker.setIcon(createAvatarIcon(meta, "offline"));
+      }
+    });
+
+    return () => {
+      socket.off("server:user:inactive");
     };
   }, []);
 
@@ -210,6 +272,7 @@ export default function MapView() {
             Active locations update in real time.
           </p>
         </div>
+
         <button
           type="button"
           onClick={handleLogout}
@@ -218,6 +281,7 @@ export default function MapView() {
           <LogOut className="h-4 w-4" />
           Logout
         </button>
+
         <div id="map" className="h-full w-full" />
       </div>
     </div>
