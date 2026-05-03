@@ -8,7 +8,6 @@ It combines Google authentication, JWT-protected APIs and sockets, Kafka-based e
 
 <img width="1919" height="969" alt="Screenshot 2026-05-03 162328" src="https://github.com/user-attachments/assets/4e9c8a94-d3d1-4230-b587-5406509d35d3" />
 <img width="1916" height="980" alt="Screenshot 2026-05-03 162406" src="https://github.com/user-attachments/assets/9679c6a5-caea-4c57-962f-034361fe7601" />
-<img width="749" height="443" alt="Screenshot 2026-05-03 161035" src="https://github.com/user-attachments/assets/6dc416e2-9723-4e4c-b883-af3119030a24" />
 
 https://github.com/user-attachments/assets/f7e8d378-b7ba-492a-9726-3ace6c92b0cb
 
